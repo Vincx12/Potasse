@@ -47,7 +47,6 @@ def summarize_json(value):
         if v is None:
             return {"type": "null"}
         return {"type": type(v).__name__}
-
     return walk(value)
 
 
@@ -55,19 +54,12 @@ def request(name, url, headers=None):
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS:
         raise RuntimeError("blocked out-of-scope URL")
-
     req = urllib.request.Request(
         url,
         method="GET",
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "Codacy-H1-safe-validation/1.1",
-            **(headers or {}),
-        },
+        headers={"Accept": "application/json", "User-Agent": "Codacy-H1-safe-validation/1.3", **(headers or {})},
     )
     raw = b""
-    status = 0
-    content_type = ""
     location = ""
     try:
         with opener.open(req, timeout=20) as response:
@@ -80,21 +72,18 @@ def request(name, url, headers=None):
         content_type = exc.headers.get("Content-Type", "") if exc.headers else ""
         location = exc.headers.get("Location", "") if exc.headers else ""
         raw = exc.read(MAX_BODY + 1)
-
     if len(raw) > MAX_BODY:
         raise RuntimeError("response exceeded 64 KiB safety limit")
     if location:
         target = urllib.parse.urlparse(urllib.parse.urljoin(url, location))
         if target.scheme != "https" or target.hostname not in ALLOWED_HOSTS:
             raise RuntimeError("blocked out-of-scope Location header")
-
     summary = {"type": "non_json"}
     if "json" in content_type.lower():
         try:
             summary = summarize_json(json.loads(raw.decode("utf-8", "replace")))
         except json.JSONDecodeError:
             summary = {"type": "invalid_json"}
-
     result = {
         "name": name,
         "method": "GET",
@@ -112,26 +101,36 @@ def request(name, url, headers=None):
 
 results = []
 invalid = "invalid_" + secrets.token_urlsafe(24)
-for repo in REPOSITORIES:
-    owner = urllib.parse.quote(OWNER, safe="")
-    repository = urllib.parse.quote(repo, safe="")
-    analysis_url = f"{BASE}/analysis/organizations/gh/{owner}/repositories/{repository}"
-    existence = request(f"{repo}:public_analysis_control", analysis_url)
-    results.append(existence)
+found = False
+for canonical_repo in REPOSITORIES:
+    candidates = []
+    for owner, repo in [
+        (OWNER, canonical_repo),
+        (OWNER.lower(), canonical_repo),
+        (OWNER.lower(), canonical_repo.lower()),
+    ]:
+        if (owner, repo) not in candidates:
+            candidates.append((owner, repo))
 
-    if 200 <= existence["status"] < 300 and existence["body_summary"].get("type") == "object":
-        tokens_url = f"{BASE}/organizations/gh/{owner}/repositories/{repository}/tokens"
-        no_session = request(f"{repo}:tokens_no_session", tokens_url)
-        results.append(no_session)
-        if 200 <= no_session["status"] < 300:
+    for owner_name, repo_name in candidates:
+        owner = urllib.parse.quote(owner_name, safe="")
+        repository = urllib.parse.quote(repo_name, safe="")
+        analysis_url = f"{BASE}/analysis/organizations/gh/{owner}/repositories/{repository}"
+        existence = request(f"{owner_name}/{repo_name}:public_analysis_control", analysis_url)
+        results.append(existence)
+        if 200 <= existence["status"] < 300 and existence["body_summary"].get("type") == "object":
+            tokens_url = f"{BASE}/organizations/gh/{owner}/repositories/{repository}/tokens"
+            no_session = request(f"{owner_name}/{repo_name}:tokens_no_session", tokens_url)
+            results.append(no_session)
+            if not 200 <= no_session["status"] < 300:
+                results.append(request(
+                    f"{owner_name}/{repo_name}:tokens_invalid_session",
+                    tokens_url,
+                    {"api-token": invalid},
+                ))
+            found = True
             break
-        invalid_session = request(
-            f"{repo}:tokens_invalid_session",
-            tokens_url,
-            {"api-token": invalid},
-        )
-        results.append(invalid_session)
-        if 200 <= invalid_session["status"] < 300:
-            break
+    if found:
+        break
 
-print("CODACY_SAFE_PROBE=" + json.dumps(results, sort_keys=True, separators=(",", ":")))
+print("CODACY_CASE_PROBE=" + json.dumps(results, sort_keys=True, separators=(",", ":")))
