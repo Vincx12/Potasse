@@ -9,8 +9,12 @@ import urllib.parse
 import urllib.request
 
 CANDIDATES = [
-    "https://api.codacy.com/api/v3/login-with/gh",
+    "https://app.codacy.com/login-with/gh",
+    "https://api.codacy.com/login-with/gh",
+    "https://app.codacy.com/api/login-with/gh",
+    "https://api.codacy.com/api/login-with/gh",
     "https://app.codacy.com/api/v3/login-with/gh",
+    "https://api.codacy.com/api/v3/login-with/gh",
 ]
 ALLOWED_REQUEST_HOSTS = {"api.codacy.com", "app.codacy.com"}
 
@@ -33,14 +37,16 @@ def one_request(url: str) -> dict:
     req = urllib.request.Request(
         url,
         method="GET",
-        headers={"Accept": "text/html,application/json", "User-Agent": "Codacy-H1-safe-validation/2.2"},
+        headers={"Accept": "text/html,application/json", "User-Agent": "Codacy-H1-safe-validation/2.3"},
     )
     try:
         with opener.open(req, timeout=20) as response:
             status = int(response.status)
+            content_type = response.headers.get("Content-Type", "")
             location = response.headers.get("Location", "")
     except urllib.error.HTTPError as exc:
         status = int(exc.code)
+        content_type = exc.headers.get("Content-Type", "") if exc.headers else ""
         location = exc.headers.get("Location", "") if exc.headers else ""
 
     target = urllib.parse.urlparse(urllib.parse.urljoin(url, location)) if location else None
@@ -55,7 +61,9 @@ def one_request(url: str) -> dict:
     })
     return {
         "request_host": parsed.hostname,
+        "request_path": parsed.path,
         "status": status,
+        "content_type": content_type,
         "redirect_present": bool(location),
         "redirect_host": target.hostname if target else None,
         "redirect_path": target.path if target else None,
@@ -77,9 +85,11 @@ def one_request(url: str) -> dict:
     }
 
 
+attempts = []
 selected = None
 for candidate in CANDIDATES:
     first = one_request(candidate)
+    attempts.append(first)
     if first["redirect_present"]:
         second = one_request(candidate)
         selected = {"url": candidate, "first": first, "second": second}
@@ -91,4 +101,4 @@ for candidate in CANDIDATES:
         selected["nonce_unique_across_fresh_sessions"] = bool(n1 and n2 and n1 != n2)
         break
 
-print("CODACY_OAUTH_PROBE=" + json.dumps(selected or {"error": "no redirect endpoint found"}, sort_keys=True, separators=(",", ":")))
+print("CODACY_OAUTH_PROBE=" + json.dumps({"attempts": attempts, "selected": selected}, sort_keys=True, separators=(",", ":")))
