@@ -1,0 +1,16 @@
+name: Codacy H1 mutating GET probe
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate one state-changing GET hypothesis
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-mutating-get-probe-20260710/.github/scripts/codacy_mutating_get_probe.py | python3
