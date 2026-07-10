@@ -12,5 +12,5 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Run read-only Codacy account authorization controls
-        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_account_probe.py | python3
+      - name: Check researcher-owned Codacy object forms
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_probe.py | python3
