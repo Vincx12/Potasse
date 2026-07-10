@@ -16,3 +16,5 @@ jobs:
         run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/c090242b4437e9b441009feb1426d9204bc5ea8e/.github/scripts/codacy_account_probe.py | python3
       - name: Check selected administrative reads without valid authentication
         run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/c090242b4437e9b441009feb1426d9204bc5ea8e/.github/scripts/codacy_admin_probe.py | python3
+      - name: Extract operations explicitly marked public in current OpenAPI
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/c090242b4437e9b441009feb1426d9204bc5ea8e/.github/scripts/codacy_openapi_probe.py | python3
