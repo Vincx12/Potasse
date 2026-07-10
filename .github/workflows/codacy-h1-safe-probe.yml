@@ -26,7 +26,7 @@ jobs:
           import urllib.request
 
           ALLOWED = {"app.codacy.com", "api.codacy.com"}
-          URL = "https://app.codacy.com/api/v3/organizations/gh/codacy/repositories/docs/tokens"
+          URL = "https://app.codacy.com/api/v3/organizations/gh/Vincx12/repositories/Potasse/tokens"
           SENSITIVE = re.compile(r"token|secret|cookie|authorization|credential|password|api[_-]?key|email", re.I)
 
           class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -82,7 +82,6 @@ jobs:
               if parsed_final.scheme != "https" or parsed_final.hostname not in ALLOWED:
                   raise RuntimeError("response escaped allow-list")
 
-              body = None
               if "json" in content_type.lower():
                   try:
                       body = json.loads(raw.decode("utf-8", "replace"))
@@ -92,7 +91,6 @@ jobs:
                   body = {"non_json": True}
 
               sanitized = redact(body)
-              serialized = json.dumps(sanitized, sort_keys=True, separators=(",", ":"))
               return {
                   "name": name,
                   "method": "GET",
