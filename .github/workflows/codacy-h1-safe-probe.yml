@@ -1,0 +1,113 @@
+name: Codacy H1 safe single probe
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Run two non-mutating authorization controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import re
+          import secrets
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          ALLOWED = {"app.codacy.com", "api.codacy.com"}
+          URL = "https://app.codacy.com/api/v3/organizations/gh/codacy/repositories/docs/tokens"
+          SENSITIVE = re.compile(r"token|secret|cookie|authorization|credential|password|api[_-]?key|email", re.I)
+
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  parsed = urllib.parse.urlparse(newurl)
+                  if parsed.scheme != "https" or parsed.hostname not in ALLOWED:
+                      raise RuntimeError("blocked out-of-scope redirect")
+                  return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+          opener = urllib.request.build_opener(SafeRedirect())
+
+          def redact(value, key=""):
+              if SENSITIVE.search(key):
+                  if isinstance(value, str):
+                      return {"redacted": True, "length": len(value)}
+                  if isinstance(value, list):
+                      return {"redacted": True, "count": len(value)}
+                  return {"redacted": True}
+              if isinstance(value, dict):
+                  return {str(k): redact(v, str(k)) for k, v in value.items()}
+              if isinstance(value, list):
+                  return [redact(v, key) for v in value]
+              if isinstance(value, str) and len(value) >= 40 and re.fullmatch(r"[A-Za-z0-9._~+/=-]+", value):
+                  return {"redacted_possible_secret": True, "length": len(value)}
+              return value
+
+          def probe(name, headers):
+              request_headers = {
+                  "Accept": "application/json",
+                  "User-Agent": "Codacy-H1-safe-validation/1.0",
+                  **headers,
+              }
+              req = urllib.request.Request(URL, headers=request_headers, method="GET")
+              status = 0
+              content_type = ""
+              final_url = URL
+              raw = b""
+              try:
+                  with opener.open(req, timeout=20) as response:
+                      status = int(response.status)
+                      content_type = response.headers.get("Content-Type", "")
+                      final_url = response.geturl()
+                      raw = response.read(65537)
+              except urllib.error.HTTPError as exc:
+                  status = int(exc.code)
+                  content_type = exc.headers.get("Content-Type", "") if exc.headers else ""
+                  final_url = exc.geturl()
+                  raw = exc.read(65537)
+
+              if len(raw) > 65536:
+                  raise RuntimeError("response exceeded 64 KiB safety limit")
+              parsed_final = urllib.parse.urlparse(final_url)
+              if parsed_final.scheme != "https" or parsed_final.hostname not in ALLOWED:
+                  raise RuntimeError("response escaped allow-list")
+
+              body = None
+              if "json" in content_type.lower():
+                  try:
+                      body = json.loads(raw.decode("utf-8", "replace"))
+                  except json.JSONDecodeError:
+                      body = {"non_json": True}
+              else:
+                  body = {"non_json": True}
+
+              sanitized = redact(body)
+              serialized = json.dumps(sanitized, sort_keys=True, separators=(",", ":"))
+              return {
+                  "name": name,
+                  "method": "GET",
+                  "url": URL,
+                  "status": status,
+                  "content_type": content_type,
+                  "body_length": len(raw),
+                  "body_sha256": hashlib.sha256(raw).hexdigest(),
+                  "sanitized_body": sanitized,
+                  "successful_sensitive_route": 200 <= status < 300,
+              }
+
+          results = [
+              probe("no_session", {}),
+              probe("invalid_api_token", {"api-token": "invalid_" + secrets.token_urlsafe(24)}),
+          ]
+          print("CODACY_SAFE_PROBE=" + json.dumps(results, sort_keys=True, separators=(",", ":")))
+          PY
