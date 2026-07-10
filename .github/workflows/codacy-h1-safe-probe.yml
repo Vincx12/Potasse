@@ -10,7 +10,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: Inventory first-party Codacy frontend assets
-        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_frontend_probe.py | python3
+      - name: Audit Codacy source map for authorization clues
+        run: curl -fsSL https://raw.githubusercontent.com/Vincx12/Potasse/codacy-h1-safe-probe-20260710/.github/scripts/codacy_sourcemap_probe.py | python3
